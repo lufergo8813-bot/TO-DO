@@ -1,5 +1,5 @@
 // Sube el número de versión cuando cambies index.html para que se actualice en los dispositivos
-const CACHE = 'mis-tareas-v2';
+const CACHE = 'mis-tareas-v3';
 const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
