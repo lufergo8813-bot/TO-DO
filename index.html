@@ -95,6 +95,9 @@ nav button{font-size:.72rem;padding:10px 2px 9px}
 .card.inb{flex-wrap:wrap}
 .asg{flex-basis:100%;display:flex;gap:8px;padding-left:34px}
 .asg select,.asg input{flex:1;min-width:0;font:inherit;font-size:.88rem;padding:7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+.xt{border-collapse:collapse;font-size:.82rem;width:100%}
+.xt td,.xt th{border:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}
+.xt th{background:#e8f3f4}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #f5a524;outline-offset:2px}
 @media(min-width:760px){.col{width:300px}.ov{align-items:center}.sheet{border-radius:16px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -115,7 +118,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 </nav>
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
-<input type="file" id="file" accept=".json,application/json" hidden>
+<input type="file" id="xfile" accept=".xlsx,.xls,.json,application/json" hidden>
 
 <script>
 const KEY='tareas_v1';
@@ -126,7 +129,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function load(){let d=null;try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!d||!Array.isArray(d.tasks))d={tasks:[],lastBackup:0};d.cc=d.cc||{};d.del=d.del||{};return d}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('No se pudo guardar')}}
-function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),2200)}
+function toast(m,ms){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),ms||2200)}
 function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function today(){return ymd(new Date())}
 function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return ymd(d)}
@@ -221,8 +224,22 @@ function renderWeek(){
 }
 function renderMore(){
   const lb=S.lastBackup?new Date(S.lastBackup).toLocaleString('es-CO'):'nunca';
-  return`<div class="more"><div class="box"><h3>Respaldo de tus datos</h3><p>Tus tareas viven solo en este dispositivo. Si limpias el navegador, se pierden. Exporta un archivo y guárdalo en Drive o envíatelo por correo.</p><p>Último respaldo: <b>${lb}</b></p><button class="btn" data-act="export">Exportar datos</button> <button class="btn sec" data-act="import">Importar y reemplazar</button></div>
-  <div class="box"><h3>Usar en celular y computador</h3><p>Sin cuentas ni pagos: donde hiciste cambios toca “Compartir respaldo” y envíalo a tu Drive, WhatsApp o correo. En el otro dispositivo ábrelo con “Importar y fusionar”: se unen las tareas y, de cada una, gana la versión más reciente.</p><button class="btn" data-act="share">Compartir respaldo</button> <button class="btn sec" data-act="merge">Importar y fusionar</button></div>
+  return`<div class="more"><div class="box"><h3>Respaldo de tus datos</h3><p>Tus tareas viven solo en este dispositivo. Si limpias el navegador, se pierden. Descarga un respaldo en Excel y guárdalo en Drive o envíatelo por correo.</p><p>Último respaldo: <b>${lb}</b></p><button class="btn" data-act="export">Exportar datos (Excel)</button> <button class="btn sec" data-act="share">Compartir respaldo (Excel)</button></div>
+  <div class="box"><h3>Importar desde Excel</h3><p>Sirve para el respaldo que exportaste y también para un Excel armado por ti. En la primera fila escribe estos nombres (el orden no importa, pero los nombres sí):</p>
+  <div style="overflow-x:auto"><table class="xt"><tr><th>Columna</th><th>Qué escribir</th></tr>
+  <tr><td><b>Tarea</b> *</td><td>El nombre de la tarea. Es lo único obligatorio.</td></tr>
+  <tr><td><b>Prioridad</b></td><td>Periódicas, Prioridad 1, Prioridad 2 o Prioridad 3. Vacía = va a la Bandeja.</td></tr>
+  <tr><td><b>Categoría</b></td><td>Cualquier nombre: Casa, Viajes, Finanzas…</td></tr>
+  <tr><td><b>Fecha límite</b></td><td>Fecha de Excel o escrita como 25/12/2026 (día/mes/año).</td></tr>
+  <tr><td><b>Repetir</b></td><td>No, Cada día, Cada semana o Cada mes.</td></tr>
+  <tr><td><b>Notas</b></td><td>Texto libre.</td></tr>
+  <tr><td><b>Pasos</b></td><td>Varios pasos separados por punto y coma ( ; ).</td></tr>
+  <tr><td><b>Hecha</b></td><td>Sí o No.</td></tr>
+  <tr><td><b>ID</b> y <b>Actualizada</b></td><td>Los llena la app en sus respaldos. No las cambies. Si armas tu propio archivo, no las necesitas.</td></tr></table></div>
+  <p style="margin-top:10px">Cada fila es una tarea. La app lee la hoja “Tareas” (o la primera hoja).</p>
+  <p><b>Importar y fusionar:</b> agrega lo nuevo y actualiza lo que cambió, sin borrar lo que ya tienes. Las tareas del mismo nombre y categoría no se duplican.<br><b>Importar y reemplazar:</b> borra lo que tienes y deja solo lo del archivo.</p>
+  <button class="btn" data-act="merge">Importar y fusionar</button> <button class="btn sec" data-act="import">Importar y reemplazar</button> <a class="btn sec" href="plantilla-tareas.xlsx" download style="display:inline-block;text-decoration:none;margin-top:8px">Descargar plantilla</a></div>
+  <div class="box"><h3>Usar en celular y computador</h3><p>En el dispositivo donde hiciste cambios toca “Compartir respaldo” y envíalo a tu Drive, WhatsApp o correo. En el otro ábrelo con “Importar y fusionar”: se unen las tareas y, de cada una, gana la versión más reciente.</p></div>
   <div class="box"><h3>Limpieza</h3><p>Hay ${S.tasks.filter(t=>t.done).length} tareas hechas.</p><button class="btn del" data-act="clean">Borrar tareas hechas</button></div>
   <div class="box"><h3>Instalar en el celular</h3><p>Android (Chrome): menú ⋮ → “Instalar app”. iPhone (Safari): botón Compartir → “Añadir a pantalla de inicio”.</p></div></div>`;
 }
@@ -282,46 +299,122 @@ function toggle(id){
   else toast(t.done?'¡Tarea completada!':'Tarea reabierta');
   save();render();
 }
-function payload(){return{app:'mis-tareas',version:2,exportado:new Date().toISOString(),tasks:S.tasks,cc:S.cc,del:S.del}}
+const XMIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const nk=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const XH={title:['tarea','titulo','actividad','nombre'],prio:['prioridad'],cat:['categoria'],due:['fecha limite','fecha','vence','fecha de vencimiento'],rep:['repetir','repeticion','se repite'],notes:['notas','nota','observaciones'],steps:['pasos','subtareas'],done:['hecha','hecho','completada','terminada','estado'],id:['id'],upd:['actualizada','actualizado']};
+function loadXLSX(){return new Promise((ok,no)=>{if(window.XLSX)return ok();const s=document.createElement('script');s.src='xlsx.full.min.js';s.onload=ok;s.onerror=()=>no(new Error('lib'));document.head.appendChild(s)})}
+function readBuf(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsArrayBuffer(f)})}
+function readText(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsText(f)})}
+function xdate(s){if(!s)return'';const a=s.split('-').map(Number);return Math.round(Date.UTC(a[0],a[1]-1,a[2])/864e5)+25569}
+async function buildXlsxBytes(){
+  await loadXLSX();
+  const PN={per:'Periódicas',p1:'Prioridad 1',p2:'Prioridad 2',p3:'Prioridad 3'},RN={d:'Cada día',w:'Cada semana',m:'Cada mes'};
+  const rows=[['Tarea','Prioridad','Categoría','Fecha límite','Repetir','Notas','Pasos','Hecha','ID','Actualizada']];
+  S.tasks.forEach(t=>rows.push([t.title,PN[t.prio]||'',t.cat||'',xdate(t.due),RN[t.rep]||'No',t.notes||'',(t.steps||[]).map(s=>(s.d?'✓ ':'')+s.t).join('; '),t.done?'Sí':'No',t.id,t.updatedAt||0]));
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  for(let r=1;r<rows.length;r++){const c=ws[XLSX.utils.encode_cell({r,c:3})];if(c&&typeof c.v==='number')c.z='dd/mm/yyyy'}
+  ws['!cols']=[38,14,16,13,14,32,40,8,14,16].map(w=>({wch:w}));
+  const cs=XLSX.utils.aoa_to_sheet([['Categoría','Color (1 a 8)'],...cats().map(c=>[c,ci(c)+1])]);cs['!cols']=[{wch:24},{wch:14}];
+  const ds=XLSX.utils.aoa_to_sheet([['ID','Eliminada (ms)'],...Object.keys(S.del).map(id=>[id,S.del[id]])]);ds['!cols']=[{wch:18},{wch:18}];
+  const ls=XLSX.utils.aoa_to_sheet([['Respaldo de Mis Tareas'],['Exportado el '+new Date().toLocaleString('es-CO')],[''],['Hoja Tareas: tus tareas. Puedes editarla; no cambies las columnas ID ni Actualizada.'],['Hoja Colores: el color de cada categoría (1 a 8).'],['Hoja Eliminadas: sirve para que un borrado también se aplique al fusionar con otro dispositivo. No la edites.'],['Para recuperar tus datos: en la app, Respaldo → Importar y fusionar (o Importar y reemplazar).']]);ls['!cols']=[{wch:100}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Tareas');XLSX.utils.book_append_sheet(wb,cs,'Colores');XLSX.utils.book_append_sheet(wb,ds,'Eliminadas');XLSX.utils.book_append_sheet(wb,ls,'Léeme');
+  return XLSX.write(wb,{bookType:'xlsx',type:'array'});
+}
+function xname(){return 'tareas-respaldo-'+today()+'.xlsx'}
+async function exportData(){
+  try{
+    const blob=new Blob([await buildXlsxBytes()],{type:XMIME});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=xname();
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    S.lastBackup=Date.now();save();render();toast('Respaldo en Excel descargado');
+  }catch(e){toast('No pude crear el Excel. Intenta de nuevo con internet',5000)}
+}
 async function shareData(){
-  const f=new File([JSON.stringify(payload(),null,2)],'tareas-respaldo-'+today()+'.json',{type:'application/json'});
-  if(navigator.canShare&&navigator.canShare({files:[f]})){
-    try{await navigator.share({files:[f],title:'Respaldo Mis Tareas'});S.lastBackup=Date.now();save();render();return}
-    catch(e){if(e&&e.name==='AbortError')return}
-  }
+  try{
+    const f=new File([await buildXlsxBytes()],xname(),{type:XMIME});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      try{await navigator.share({files:[f],title:'Respaldo Mis Tareas'});S.lastBackup=Date.now();save();render();return}
+      catch(e){if(e&&e.name==='AbortError')return}
+    }
+  }catch(e){}
   exportData();
 }
-function exportData(){
-  const blob=new Blob([JSON.stringify(payload(),null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tareas-respaldo-'+today()+'.json';
-  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  S.lastBackup=Date.now();save();render();toast('Respaldo descargado');
+function pdate(v){
+  if(v===''||v==null)return'';
+  if(typeof v==='number'){if(v>20000&&v<80000){const d=new Date(Math.round((v-25569)*864e5));return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0')}return''}
+  const s=String(v).trim();let m;
+  if(m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  if(m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/)){let y=m[3];if(y.length===2)y='20'+y;return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')}
+  return'';
+}
+function pprio(v){const s=nk(v);if(!s)return['',true];if(s.includes('period'))return['per',true];if(/(^|\D)1(\D|$)|^p1$|alta|urgente/.test(s))return['p1',true];if(/(^|\D)2(\D|$)|^p2$|media/.test(s))return['p2',true];if(/(^|\D)3(\D|$)|^p3$|baja/.test(s))return['p3',true];return['',false]}
+function prep(v){const s=nk(v);if(s.includes('dia')||s==='d'||s.includes('diari'))return'd';if(s.includes('semana')||s==='w')return'w';if(s.includes('mes')||s==='m')return'm';return''}
+async function readExcel(f){
+  await loadXLSX();
+  const wb=XLSX.read(await readBuf(f),{type:'array'});
+  const ws=wb.Sheets['Tareas']||wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  const hi=rows.findIndex(r=>r.some(c=>XH.title.includes(nk(c))));
+  if(hi<0)throw new Error('header');
+  const ix={};rows[hi].forEach((c,i)=>{const k=nk(c);for(const key in XH)if(ix[key]==null&&XH[key].includes(k))ix[key]=i});
+  const g=(r,k)=>ix[k]==null?'':r[ix[k]];
+  const rt=[];let badP=0,badD=0;
+  rows.slice(hi+1).forEach(r=>{
+    const title=String(g(r,'title')).trim();if(!title)return;
+    const pr=pprio(g(r,'prio'));if(!pr[1])badP++;
+    const dv=g(r,'due'),due=pdate(dv);if(dv!==''&&!due)badD++;
+    const dn=['si','x','hecha','hecho','true','1','completada','listo','terminada'].includes(nk(g(r,'done')));
+    const u=g(r,'upd'),upd=typeof u==='number'?u:(Date.parse(u)||0);
+    rt.push({id:String(g(r,'id')).trim(),title:title.slice(0,200),notes:String(g(r,'notes')).trim(),prio:pr[0],cat:String(g(r,'cat')).trim().slice(0,40),due,rep:prep(g(r,'rep')),myday:'',done:dn,doneAt:dn?(upd||Date.now()):0,updatedAt:upd,
+      steps:String(g(r,'steps')).split(/[;\n]/).map(x=>x.trim()).filter(Boolean).map(x=>x.startsWith('✓ ')?{t:x.slice(2).trim(),d:true}:{t:x,d:false})});
+  });
+  const cc={},del={};
+  const sh=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''}).slice(1):[];
+  sh('Colores').forEach(r=>{const n=Number(r[1]);if(r[0]&&n>=1&&n<=8)cc[String(r[0])]=n-1});
+  sh('Eliminadas').forEach(r=>{const n=Number(r[1]);if(r[0]&&n>0)del[String(r[0])]=n});
+  return{rt,cc,del,badP,badD};
 }
 function cleanTask(t){return{id:t.id||uid(),title:String(t.title),notes:t.notes||'',prio:(t.prio===''||P[t.prio])?t.prio:'p1',cat:t.cat||'',due:t.due||'',rep:t.rep||'',myday:t.myday||'',done:!!t.done,doneAt:t.doneAt||0,updatedAt:t.updatedAt||0,steps:Array.isArray(t.steps)?t.steps:[]}}
-function importData(f){
-  const r=new FileReader();
-  r.onload=()=>{try{
-    const d=JSON.parse(r.result);if(!d||!Array.isArray(d.tasks))throw 0;
-    const rt=d.tasks.filter(t=>t&&t.title).map(cleanTask);
-    if(importMode==='replace'){
-      if(!confirm('Esto reemplazará tus '+S.tasks.length+' tareas actuales por las '+rt.length+' del respaldo. ¿Continuar?'))return;
-      S.tasks=rt;S.cc=d.cc||{};S.del=d.del||{};toast('Respaldo importado');
+function applyImport(rt,cc,del,mode){
+  if(mode==='replace'){
+    if(!confirm('Esto reemplazará tus '+S.tasks.length+' tareas actuales por las '+rt.length+' del archivo. ¿Continuar?'))return'';
+    S.tasks=rt.map(t=>({...t,id:t.id||uid(),updatedAt:t.updatedAt||Date.now()}));S.cc=cc;S.del=del;
+    return'Archivo importado: '+rt.length+' tareas';
+  }
+  Object.keys(del).forEach(id=>{S.del[id]=Math.max(S.del[id]||0,del[id])});
+  const seen=new Set(S.tasks.map(t=>nk(t.title)+'|'+nk(t.cat)));
+  let add=0,upd=0,dup=0;
+  rt.forEach(t=>{
+    if(t.id){
+      if(S.del[t.id]&&S.del[t.id]>=t.updatedAt)return;
+      const k=S.tasks.findIndex(x=>x.id===t.id);
+      if(k<0){S.tasks.push(t);add++}else if(t.updatedAt>(S.tasks[k].updatedAt||0)){S.tasks[k]=t;upd++}
     }else{
-      const rd=d.del||{};let add=0,upd=0;
-      Object.keys(rd).forEach(id=>{S.del[id]=Math.max(S.del[id]||0,rd[id])});
-      rt.forEach(t=>{
-        if(S.del[t.id]&&S.del[t.id]>=t.updatedAt)return;
-        const k=S.tasks.findIndex(x=>x.id===t.id);
-        if(k<0){S.tasks.push(t);add++}else if(t.updatedAt>(S.tasks[k].updatedAt||0)){S.tasks[k]=t;upd++}
-      });
-      const n=S.tasks.length;
-      S.tasks=S.tasks.filter(t=>!(S.del[t.id]&&S.del[t.id]>=(t.updatedAt||0)));
-      S.cc=Object.assign({},d.cc||{},S.cc);
-      toast('Fusionado: '+add+' nuevas, '+upd+' actualizadas, '+(n-S.tasks.length)+' eliminadas');
+      const key=nk(t.title)+'|'+nk(t.cat);
+      if(seen.has(key)){dup++;return}
+      seen.add(key);t.id=uid();t.updatedAt=Date.now();S.tasks.push(t);add++;
     }
+  });
+  const n=S.tasks.length;
+  S.tasks=S.tasks.filter(t=>!(S.del[t.id]&&S.del[t.id]>=(t.updatedAt||0)));
+  S.cc=Object.assign({},cc,S.cc);
+  const rem=n-S.tasks.length;
+  return'Fusionado: '+add+' nuevas, '+upd+' actualizadas'+(rem?', '+rem+' eliminadas':'')+(dup?', '+dup+' ya existían':'');
+}
+async function importAny(f){
+  try{
+    let rt,cc={},del={},badP=0,badD=0;
+    if(/\.json$/i.test(f.name)){
+      const d=JSON.parse(await readText(f));if(!d||!Array.isArray(d.tasks))throw 0;
+      rt=d.tasks.filter(t=>t&&t.title).map(cleanTask);cc=d.cc||{};del=d.del||{};
+    }else{({rt,cc,del,badP,badD}=await readExcel(f))}
+    if(!rt.length){toast('No encontré tareas en el archivo',4000);return}
+    if(importMode==='merge'&&!confirm('Se leyeron '+rt.length+' tareas del archivo. ¿Fusionarlas con las tuyas?'))return;
+    const msg=applyImport(rt,cc,del,importMode);if(!msg)return;
     save();render();
-  }catch(e){toast('El archivo no es un respaldo válido')}};
-  r.readAsText(f);
+    toast(msg+(badP?'. '+badP+' con prioridad no reconocida quedaron en la Bandeja':'')+(badD?'. '+badD+' con fecha no reconocida quedaron sin fecha':''),6000);
+  }catch(e){toast(e&&e.message==='header'?'No encontré la columna “Tarea” en la primera fila. Descarga la plantilla para ver el formato.':'No pude leer el archivo. Verifica que sea un Excel (.xlsx)',5000)}
 }
 
 document.addEventListener('click',e=>{
@@ -342,8 +435,8 @@ document.addEventListener('click',e=>{
     case'stepchk':draft.steps[i].d=!draft.steps[i].d;renderSteps();break;
     case'stepdel':draft.steps.splice(i,1);renderSteps();break;
     case'export':exportData();break;
-    case'import':importMode='replace';$('file').click();break;
-    case'merge':importMode='merge';$('file').click();break;
+    case'import':importMode='replace';$('xfile').click();break;
+    case'merge':importMode='merge';$('xfile').click();break;
     case'share':shareData();break;
     case'bm':S.bm=a.dataset.m;save();render();break;
     case'addc':openSheet(null,'p1','',a.dataset.cat);break;
@@ -421,7 +514,7 @@ document.addEventListener('pointerup',()=>endDrag(true));
 document.addEventListener('pointercancel',()=>endDrag(false));
 document.addEventListener('touchmove',e=>{if(dg&&dg.on)e.preventDefault()},{passive:false});
 document.addEventListener('contextmenu',e=>{if(e.target.closest&&e.target.closest('.card'))e.preventDefault()});
-$('file').addEventListener('change',e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value=''});
+$('xfile').addEventListener('change',e=>{if(e.target.files[0])importAny(e.target.files[0]);e.target.value=''});
 render();
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
