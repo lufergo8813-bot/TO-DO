@@ -1,5 +1,5 @@
 // Sube el número de versión cuando cambies index.html para que se actualice en los dispositivos
-const CACHE = 'mis-tareas-v5';
+const CACHE = 'mis-tareas-v6';
 const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'xlsx.full.min.js', 'plantilla-tareas.xlsx'];
 
 self.addEventListener('install', e => {

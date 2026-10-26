@@ -98,13 +98,20 @@ nav button{font-size:.72rem;padding:10px 2px 9px}
 .xt{border-collapse:collapse;font-size:.82rem;width:100%}
 .xt td,.xt th{border:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}
 .xt th{background:#e8f3f4}
+.hr{display:flex;align-items:center;justify-content:space-between}
+.ib{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:50%;width:40px;height:40px;display:grid;place-items:center;padding:0}
+.sb{display:flex;gap:8px;margin-top:8px}
+.sb[hidden]{display:none}
+.sb input{flex:1;min-width:0;font:inherit;padding:9px 12px;border:0;border-radius:10px}
+.sx{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:10px;width:40px;font-size:1.4rem;padding:0}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #f5a524;outline-offset:2px}
 @media(min-width:760px){.col{width:300px}.ov{align-items:center}.sheet{border-radius:16px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<header><h1>✓ Mis Tareas</h1></header>
+<header><div class="hr"><h1>✓ Mis Tareas</h1><button class="ib" id="sbtn" aria-label="Buscar tarea"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button></div>
+<div class="sb" id="sb" hidden><input type="search" id="q" placeholder="Buscar en título, notas, pasos o categoría" aria-label="Buscar tarea" autocomplete="off"><button class="sx" id="qx" aria-label="Cerrar búsqueda">×</button></div></header>
 <div class="chips" id="chips"></div>
 <main id="main"></main>
 <button class="fab" id="fab" aria-label="Nueva tarea">+</button>
@@ -124,7 +131,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 const KEY='tareas_v1';
 const P={per:'Periódicas',p1:'Prioridad 1',p2:'Prioridad 2',p3:'Prioridad 3'};
 const REP={'':'No se repite',d:'Cada día',w:'Cada semana',m:'Cada mes'};
-let S=load(),view='board',cat='',draft=null,isNew=false,wk=0,importMode='merge';
+let S=load(),view='board',cat='',draft=null,isNew=false,wk=0,importMode='merge',q='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function load(){let d=null;try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!d||!Array.isArray(d.tasks))d={tasks:[],lastBackup:0};d.cc=d.cc||{};d.del=d.del||{};return d}
@@ -142,7 +149,8 @@ function ci(n){if(S.cc[n]!=null)return S.cc[n];let h=0;for(const c of n)h=(h*31+
 function cstyle(n){const p=PAL[ci(n)];return'background:'+p[0]+';color:'+p[1]}
 const BM=()=>S.bm==='cat'?'cat':'prio';
 function pb(t){return t.prio?`<span class="pbadge t-${t.prio}">${P[t.prio]}</span> `:'<span class="pbadge" style="background:#e4e8ef;color:#444">Bandeja</span> '}
-function vis(t){return!cat||t.cat===cat}
+function mt(t){return!q||nk(t.title+' '+(t.notes||'')+' '+(t.cat||'')+' '+(t.steps||[]).map(s=>s.t).join(' ')).includes(q)}
+function vis(t){return(!cat||t.cat===cat)&&mt(t)}
 
 function card(t){
   const m=[];
@@ -180,16 +188,17 @@ function segHTML(){const m=BM();return`<div class="seg"><button data-act="bm" da
 function renderCatBoard(){
   const o={p1:0,p2:1,p3:2,per:3};
   const cols=[...cats(),''].map(n=>{
-    const l=S.tasks.filter(t=>!t.done&&t.prio&&(t.cat||'')===n).sort((a,b)=>o[a.prio]-o[b.prio]||sortT(a,b));
+    const l=S.tasks.filter(t=>!t.done&&t.prio&&(t.cat||'')===n&&mt(t)).sort((a,b)=>o[a.prio]-o[b.prio]||sortT(a,b));
+    if(q&&!l.length)return'';
     const tag=n?`<span class="tag" style="${cstyle(n)}">${esc(n)}<small>${l.length}</small></span>`:`<span class="tag" style="background:#d9dee7;color:#444">Sin categoría<small>${l.length}</small></span>`;
     return`<section class="col" data-k="${esc(n)}"><div class="colh">${tag}<button class="plus" data-act="addc" data-cat="${esc(n)}" aria-label="Agregar en ${esc(n||'Sin categoría')}">+</button></div>${l.map(t=>card(t).replace('<div class="tt">','<div class="tt">'+pb(t))).join('')||'<div class="empty">Sin tareas</div>'}</section>`;
   }).join('');
   return segHTML()+bannerHTML()+`<div class="board">${cols}</div>`;
 }
 function renderInbox(){
-  const l=S.tasks.filter(t=>!t.done&&!t.prio).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const l=S.tasks.filter(t=>!t.done&&!t.prio&&mt(t)).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
   const it=t=>`<div class="card inb" data-id="${t.id}"><button class="chk" data-act="tog" aria-label="Completar tarea"></button><div class="ct" data-act="edit" tabindex="0" role="button"><div class="tt">${esc(t.title)}</div></div><div class="asg"><select data-f="prio" aria-label="Asignar prioridad"><option value="">Prioridad…</option>${Object.keys(P).map(k=>`<option value="${k}">${P[k]}</option>`).join('')}</select><input type="text" data-f="cat" list="cl2" value="${esc(t.cat)}" placeholder="Categoría" aria-label="Categoría" maxlength="40"></div></div>`;
-  return`<div class="list"><div class="qa"><input type="text" id="qa" placeholder="Escribe una tarea y presiona Enter" maxlength="200" aria-label="Nueva tarea"><button class="btn" data-act="qadd">Agregar</button></div><p class="hint">Anota aquí lo que se te ocurra. Cuando le asignes prioridad, la tarea pasa al Tablero.</p><datalist id="cl2">${cats().map(c=>`<option value="${esc(c)}">`).join('')}</datalist>${l.map(it).join('')||'<div class="empty">Bandeja vacía 🎉</div>'}</div>`;
+  return`<div class="list"><div class="qa"><input type="text" id="qa" placeholder="Escribe una tarea y presiona Enter" maxlength="200" aria-label="Nueva tarea"><button class="btn" data-act="qadd">Agregar</button></div><p class="hint">Anota aquí lo que se te ocurra. Cuando le asignes prioridad, la tarea pasa al Tablero.</p><datalist id="cl2">${cats().map(c=>`<option value="${esc(c)}">`).join('')}</datalist>${l.map(it).join('')||(q?'<div class="empty">Sin resultados para esa búsqueda</div>':'<div class="empty">Bandeja vacía 🎉</div>')}</div>`;
 }
 function qadd(){
   const v=$('qa').value.trim();if(!v)return;
@@ -248,6 +257,7 @@ function render(){
   renderChips();
   $('main').innerHTML={board:()=>BM()==='cat'?renderCatBoard():renderBoard(),inbox:renderInbox,day:renderDay,week:renderWeek,plan:renderPlan,more:renderMore}[view]();
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+  $('sbtn').style.visibility=view==='more'?'hidden':'visible';
   $('fab').style.display=(view==='more'||view==='inbox')?'none':'block';
   const nb=S.tasks.filter(t=>!t.done&&!t.prio).length;
   document.querySelector('#nav [data-v=inbox]').innerHTML='Bandeja'+(nb?`<b class="bd">${nb}</b>`:'');
@@ -450,6 +460,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&draft)closeSheet();
+  if(e.key==='Escape'&&e.target.id==='q')toggleSearch(false);
   if(e.key==='Enter'&&e.target.id==='f-s'){e.preventDefault();document.querySelector('[data-act=stepadd]').click()}
   if(e.key==='Enter'&&e.target.id==='qa'){e.preventDefault();qadd()}
   if(e.key==='Enter'&&e.target.id==='f-t'){e.preventDefault();saveDraft()}
@@ -460,6 +471,13 @@ document.addEventListener('change',e=>{
   const c=e.target.closest('.card'),t=c&&S.tasks.find(x=>x.id===c.dataset.id);if(!t)return;
   if(f==='prio'){if(!e.target.value)return;t.prio=e.target.value;t.updatedAt=Date.now();save();render();toast('Pasó al Tablero: '+P[t.prio])}
   else{t.cat=e.target.value.trim();t.updatedAt=Date.now();save()}
+});
+function toggleSearch(on){const sb=$('sb');sb.hidden=!on;if(on)$('q').focus();else{$('q').value='';if(q){q='';render()}}}
+$('sbtn').addEventListener('click',()=>toggleSearch($('sb').hidden));
+$('qx').addEventListener('click',()=>toggleSearch(false));
+$('q').addEventListener('input',e=>{
+  q=nk(e.target.value);const b=document.querySelector('.board'),sl=b?b.scrollLeft:0,st=$('main').scrollTop;
+  render();const b2=document.querySelector('.board');if(b2)b2.scrollLeft=sl;$('main').scrollTop=st;
 });
 document.addEventListener('input',e=>{if(e.target.id==='f-c'&&draft){draft._cc=null;renderSw()}});
 document.addEventListener('click',e=>{if(Date.now()-lastDrag<350){e.stopPropagation();e.preventDefault()}},true);
