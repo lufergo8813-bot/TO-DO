@@ -106,6 +106,10 @@ nav button{font-size:.72rem;padding:10px 2px 9px}
 .sx{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:10px;width:40px;font-size:1.4rem;padding:0}
 .card.insb{box-shadow:0 -4px 0 var(--acc)}
 .card.insa{box-shadow:0 4px 0 var(--acc)}
+.rd{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rd span{width:100%;font-size:.8rem;font-weight:600;color:var(--mute)}
+.rd button{min-width:40px;height:36px;border:1px solid var(--line);background:#fff;border-radius:8px;font:inherit;font-size:.85rem;padding:0 8px;color:var(--ink)}
+.rd button.on{background:var(--acc);border-color:var(--acc);color:#fff}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #f5a524;outline-offset:2px}
 @media(min-width:760px){.col{width:300px}.ov{align-items:center}.sheet{border-radius:16px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -132,20 +136,44 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 <script>
 const KEY='tareas_v1';
 const P={per:'Periódicas',p1:'Prioridad 1',p2:'Prioridad 2',p3:'Prioridad 3'};
-const REP={'':'No se repite',d:'Cada día',w:'Cada semana',m:'Cada mes'};
+const REP={'':'No se repite',d:'Cada día',w:'Cada semana',m:'Cada mes',wd:'Días de la semana…',md:'Días del mes…'};
+const WD=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'],WORD=[1,2,3,4,5,6,0];
 let S=load(),view='board',cat='',draft=null,isNew=false,wk=0,importMode='merge',q='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function load(){let d=null;try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!d||!Array.isArray(d.tasks))d={tasks:[],lastBackup:0};d.cc=d.cc||{};d.del=d.del||{};ensureOrd(d);return d}
+function load(){let d=null;try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!d||!Array.isArray(d.tasks))d={tasks:[],lastBackup:0};d.cc=d.cc||{};d.del=d.del||{};ensureOrd(d);d.catList=Array.isArray(d.catList)?d.catList:[];return d}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('No se pudo guardar')}}
 function toast(m,ms){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),ms||2200)}
 function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function today(){return ymd(new Date())}
 function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return ymd(d)}
-function nextDue(s,r){const d=new Date((s||today())+'T12:00:00');if(r==='d')d.setDate(d.getDate()+1);else if(r==='w')d.setDate(d.getDate()+7);else d.setMonth(d.getMonth()+1);return ymd(d)}
+function nextMatch(r,rd,base,inc){
+  for(let i=inc?0:1;i<=62;i++){
+    const ds=addDays(base,i),d=new Date(ds+'T12:00:00');
+    if(r==='wd'){if(rd.includes(d.getDay()))return ds}
+    else{const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();if(rd.some(x=>(x===0?last:Math.min(x,last))===d.getDate()))return ds}
+  }
+  return'';
+}
+function nextDue(s,r,rd){
+  const t0=today();
+  if((r==='wd'||r==='md')&&rd&&rd.length){const x=nextMatch(r,rd,s&&s>t0?s:t0,false);if(x)return x}
+  if(r==='wd')r='w';if(r==='md')r='m';
+  const d=new Date((s||t0)+'T12:00:00');
+  if(r==='d')d.setDate(d.getDate()+1);else if(r==='w')d.setDate(d.getDate()+7);
+  else{const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+1);const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,last))}
+  return ymd(d);
+}
+function repTxt(t){
+  const rd=t.rd||[];
+  if(t.rep==='wd'&&rd.length)return' '+WORD.filter(n=>rd.includes(n)).map(n=>WD[n]).join(', ');
+  if(t.rep==='md'&&rd.length)return' día '+[...rd].sort((a,b)=>(a||99)-(b||99)).map(n=>n===0?'último':n).join(', ');
+  return'';
+}
 function fmt(s){const t=today();if(s===t)return'Hoy';if(s===addDays(t,1))return'Mañana';return new Date(s+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'})}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
-function cats(){return[...new Set(S.tasks.map(t=>t.cat).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'))}
+function cats(){return[...new Set([...S.tasks.map(t=>t.cat).filter(Boolean),...(S.catList||[])])].sort((a,b)=>a.localeCompare(b,'es'))}
+function syncCats(){S.catList=S.catList||[];S.tasks.forEach(t=>{if(t.cat&&!S.catList.includes(t.cat))S.catList.push(t.cat)})}
 const PAL=[['#e8f3f4','#0a5d65'],['#ead9f7','#5b1f8c'],['#d3e5ff','#1b4b9b'],['#fdeab0','#7a5500'],['#ffd8d3','#9c2519'],['#d6efdd','#1d6338'],['#ffe1c7','#8a3b00'],['#f9d5ea','#8a1c5c']];
 function ci(n){if(S.cc[n]!=null)return S.cc[n];let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%997;return h%PAL.length}
 function cstyle(n){const p=PAL[ci(n)];return'background:'+p[0]+';color:'+p[1]}
@@ -158,7 +186,7 @@ function card(t){
   const m=[];
   if(t.cat)m.push(`<span class="cc" style="${cstyle(t.cat)}">${esc(t.cat)}</span>`);
   if(t.due)m.push(`<span class="${!t.done&&t.due<today()?'late':''}">📅 ${fmt(t.due)}</span>`);
-  if(t.rep)m.push('<span>🔁</span>');
+  if(t.rep)m.push('<span>🔁'+repTxt(t)+'</span>');
   if(t.steps&&t.steps.length)m.push(`<span>☰ ${t.steps.filter(s=>s.d).length}/${t.steps.length}</span>`);
   if(t.notes)m.push('<span>📝</span>');
   if(t.myday===today()&&!t.done)m.push('<span>☀ Mi día</span>');
@@ -243,21 +271,24 @@ function renderWeek(){
 }
 function renderMore(){
   const lb=S.lastBackup?new Date(S.lastBackup).toLocaleString('es-CO'):'nunca';
-  return`<div class="more"><div class="box"><h3>Respaldo de tus datos</h3><p>Tus tareas viven solo en este dispositivo. Si limpias el navegador, se pierden. Descarga un respaldo en Excel y guárdalo en Drive o envíatelo por correo.</p><p>Último respaldo: <b>${lb}</b></p><button class="btn" data-act="export">Exportar datos (Excel)</button> <button class="btn sec" data-act="share">Compartir respaldo (Excel)</button></div>
+  return`<div class="more"><div class="box"><h3>Respaldo de tus datos</h3><p>Tus tareas viven solo en este dispositivo. Si limpias el navegador, se pierden. Descarga un respaldo en Excel y guárdalo en Drive o envíatelo por correo. Trae tus categorías actuales en la hoja “Categorías”, donde puedes agregar más.</p><p>Último respaldo: <b>${lb}</b></p><button class="btn" data-act="export">Exportar datos (Excel)</button> <button class="btn sec" data-act="share">Compartir respaldo (Excel)</button></div>
+  <div class="box"><h3>Mis categorías</h3><p>Son las que puedes escoger al crear una tarea. Agrega una nueva aquí, o en la hoja “Categorías” del Excel y luego importa. Toca una para quitarla.</p>
+  <div class="rd" style="margin:0 0 10px">${cats().map(c=>`<button type="button" style="background:${PAL[ci(c)][0]};color:${PAL[ci(c)][1]};border-color:transparent;font-weight:600" data-act="catdel" data-c="${esc(c)}" aria-label="Quitar categoría ${esc(c)}">${esc(c)} (${S.tasks.filter(t=>t.cat===c).length}) ×</button>`).join('')||'<span>Aún no tienes categorías</span>'}</div>
+  <div class="qa"><input type="text" id="newcat" placeholder="Nueva categoría" maxlength="40" aria-label="Nueva categoría"><button class="btn" data-act="catadd">Agregar</button></div></div>
   <div class="box"><h3>Importar desde Excel</h3><p>Sirve para el respaldo que exportaste y también para un Excel armado por ti. En la primera fila escribe estos nombres (el orden no importa, pero los nombres sí):</p>
   <div style="overflow-x:auto"><table class="xt"><tr><th>Columna</th><th>Qué escribir</th></tr>
   <tr><td><b>Tarea</b> *</td><td>El nombre de la tarea. Es lo único obligatorio.</td></tr>
   <tr><td><b>Prioridad</b></td><td>Periódicas, Prioridad 1, Prioridad 2 o Prioridad 3. Vacía = va a la Bandeja.</td></tr>
   <tr><td><b>Categoría</b></td><td>Cualquier nombre: Casa, Viajes, Finanzas…</td></tr>
   <tr><td><b>Fecha límite</b></td><td>Fecha de Excel o escrita como 25/12/2026 (día/mes/año).</td></tr>
-  <tr><td><b>Repetir</b></td><td>No, Cada día, Cada semana o Cada mes.</td></tr>
+  <tr><td><b>Repetir</b></td><td>No, Cada día, Cada semana o Cada mes. Para días específicos: “Cada semana: Lun, Mié” o “Cada mes: 1, 15, último”.</td></tr>
   <tr><td><b>Notas</b></td><td>Texto libre.</td></tr>
   <tr><td><b>Pasos</b></td><td>Varios pasos separados por punto y coma ( ; ).</td></tr>
   <tr><td><b>Hecha</b></td><td>Sí o No.</td></tr>
   <tr><td><b>ID</b>, <b>Actualizada</b> y <b>Orden</b></td><td>Los llena la app en sus respaldos. No las cambies. Si armas tu propio archivo, no las necesitas.</td></tr></table></div>
-  <p style="margin-top:10px">Cada fila es una tarea. La app lee la hoja “Tareas” (o la primera hoja).</p>
+  <p style="margin-top:10px">Cada fila es una tarea. La app lee la hoja “Tareas” (o la primera hoja) y las categorías de la hoja “Categorías”. La plantilla se descarga con tus categorías actuales y una lista desplegable en la columna Categoría.</p>
   <p><b>Importar y fusionar:</b> agrega lo nuevo y actualiza lo que cambió, sin borrar lo que ya tienes. Las tareas del mismo nombre y categoría no se duplican.<br><b>Importar y reemplazar:</b> borra lo que tienes y deja solo lo del archivo.</p>
-  <button class="btn" data-act="merge">Importar y fusionar</button> <button class="btn sec" data-act="import">Importar y reemplazar</button> <a class="btn sec" href="plantilla-tareas.xlsx" download style="display:inline-block;text-decoration:none;margin-top:8px">Descargar plantilla</a></div>
+  <button class="btn" data-act="merge">Importar y fusionar</button> <button class="btn sec" data-act="import">Importar y reemplazar</button> <button class="btn sec" data-act="tpl" style="margin-top:8px">Descargar plantilla</button></div>
   <div class="box"><h3>Usar en celular y computador</h3><p>En el dispositivo donde hiciste cambios toca “Compartir respaldo” y envíalo a tu Drive, WhatsApp o correo. En el otro ábrelo con “Importar y fusionar”: se unen las tareas y, de cada una, gana la versión más reciente.</p></div>
   <div class="box"><h3>Limpieza</h3><p>Hay ${S.tasks.filter(t=>t.done).length} tareas hechas.</p><button class="btn del" data-act="clean">Borrar tareas hechas</button></div>
   <div class="box"><h3>Instalar en el celular</h3><p>Android (Chrome): menú ⋮ → “Instalar app”. iPhone (Safari): botón Compartir → “Añadir a pantalla de inicio”.</p></div></div>`;
@@ -283,12 +314,13 @@ function openSheet(id,prio,due,ctg){
   <div id="sw" class="sw"></div>
   <div class="row2"><div><label for="f-d">Fecha límite</label><input type="date" id="f-d" value="${draft.due}"></div>
   <div><label for="f-r">Repetir</label><select id="f-r">${Object.keys(REP).map(k=>`<option value="${k}" ${draft.rep===k?'selected':''}>${REP[k]}</option>`).join('')}</select></div></div>
+  <div id="rd" class="rd"></div>
   <label><input type="checkbox" id="f-m" ${draft.myday===today()?'checked':''}> ☀ Agregar a Mi día</label>
   <label>Pasos</label><div id="steps"></div>
   <div class="row2" style="grid-template-columns:1fr auto"><input type="text" id="f-s" placeholder="Agregar paso" maxlength="120"><button class="btn sec" data-act="stepadd">Agregar</button></div>
   <label for="f-n">Notas</label><textarea id="f-n">${esc(draft.notes)}</textarea>
   <div class="acts">${isNew?'':'<button class="btn del" data-act="del">Eliminar</button>'}<button class="btn sec" data-act="close">Cancelar</button><button class="btn" data-act="save">Guardar</button></div>`;
-  renderSteps();renderSw();
+  renderSteps();renderSw();renderRd();
   $('ov').classList.add('open');
   setTimeout(()=>{if(isNew)$('f-t').focus()},60);
 }
@@ -301,22 +333,39 @@ function renderSw(){
   const cur=draft._cc!=null?draft._cc:ci(n);
   sw.innerHTML='<span>Color de la categoría</span>'+PAL.map((p,i)=>`<button type="button" class="${i===cur?'on':''}" style="background:${p[1]}" data-act="sw" data-i="${i}" aria-label="Color ${i+1}"></button>`).join('');
 }
+function setRep(v){
+  draft.rep=v;draft.rd=[];
+  const b=$('f-d').value?new Date($('f-d').value+'T12:00:00'):new Date();
+  if(v==='wd')draft.rd=[b.getDay()];if(v==='md')draft.rd=[b.getDate()];
+  renderRd();
+}
+function renderRd(){
+  draft.rd=draft.rd||[];const el=$('rd'),on=n=>draft.rd.includes(n)?'on':'';
+  if(draft.rep==='wd')el.innerHTML='<span>¿Qué días de la semana?</span>'+WORD.map(n=>`<button type="button" class="${on(n)}" data-act="rdt" data-n="${n}">${WD[n]}</button>`).join('');
+  else if(draft.rep==='md')el.innerHTML='<span>¿Qué días del mes? Si un mes no tiene ese día, se usa su último día.</span>'+Array.from({length:31},(_,i)=>i+1).map(n=>`<button type="button" class="${on(n)}" data-act="rdt" data-n="${n}">${n}</button>`).join('')+`<button type="button" class="${on(0)}" data-act="rdt" data-n="0">Último día</button>`;
+  else el.innerHTML='';
+}
 function closeSheet(){$('ov').classList.remove('open');draft=null}
 function saveDraft(){
   const title=$('f-t').value.trim();
   if(!title){toast('Escribe el nombre de la tarea');$('f-t').focus();return}
   Object.assign(draft,{title,notes:$('f-n').value.trim(),prio:$('f-p').value,cat:$('f-c').value.trim(),due:$('f-d').value,rep:$('f-r').value});
+  draft.rd=draft.rd||[];
+  if(draft.rep==='wd'||draft.rep==='md'){
+    if(!draft.rd.length){toast('Elige al menos un día para repetir');return}
+    if(!draft.due)draft.due=nextMatch(draft.rep,draft.rd,today(),true);
+  }else draft.rd=[];
   draft.myday=$('f-m').checked?today():(draft.myday===today()?'':draft.myday);
   const pend=$('f-s').value.trim();if(pend)draft.steps.push({t:pend,d:false});
   const old=isNew?null:S.tasks.find(x=>x.id===draft.id);if(!old||old.prio!==draft.prio)draft.ord=nextOrd();
   const cc=draft._cc;delete draft._cc;if(draft.cat&&cc!=null)S.cc[draft.cat]=cc;draft.updatedAt=Date.now();
   if(isNew)S.tasks.push(draft);else S.tasks[S.tasks.findIndex(x=>x.id===draft.id)]=draft;
-  save();closeSheet();render();
+  syncCats();save();closeSheet();render();
 }
 function toggle(id){
   const t=S.tasks.find(x=>x.id===id);if(!t)return;
   t.done=!t.done;t.doneAt=t.done?Date.now():0;t.updatedAt=Date.now();
-  if(t.done&&t.rep){S.tasks.push({...t,id:uid(),ord:nextOrd(),done:false,doneAt:0,updatedAt:Date.now(),due:nextDue(t.due,t.rep),myday:'',steps:(t.steps||[]).map(s=>({t:s.t,d:false}))});toast('Hecha. Creé la siguiente repetición')}
+  if(t.done&&t.rep){S.tasks.push({...t,id:uid(),ord:nextOrd(),done:false,doneAt:0,updatedAt:Date.now(),due:nextDue(t.due,t.rep,t.rd),myday:'',steps:(t.steps||[]).map(s=>({t:s.t,d:false}))});toast('Hecha. Creé la siguiente repetición')}
   else toast(t.done?'¡Tarea completada!':'Tarea reabierta');
   save();render();
 }
@@ -326,21 +375,91 @@ const XH={title:['tarea','titulo','actividad','nombre'],prio:['prioridad'],cat:[
 function loadXLSX(){return new Promise((ok,no)=>{if(window.XLSX)return ok();const s=document.createElement('script');s.src='xlsx.full.min.js';s.onload=ok;s.onerror=()=>no(new Error('lib'));document.head.appendChild(s)})}
 function readBuf(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsArrayBuffer(f)})}
 function readText(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsText(f)})}
+function repXl(t){
+  const rd=t.rd||[];
+  if(t.rep==='wd'&&rd.length)return'Cada semana: '+WORD.filter(n=>rd.includes(n)).map(n=>WD[n]).join(', ');
+  if(t.rep==='md'&&rd.length)return'Cada mes: '+[...rd].sort((a,b)=>(a||99)-(b||99)).map(n=>n===0?'último':n).join(', ');
+  return({d:'Cada día',w:'Cada semana',m:'Cada mes'})[t.rep]||'No';
+}
+function prepx(v){
+  const s=nk(v),m=s.match(/^cada\s+(semana|mes)\s*:\s*(.+)$/);
+  if(m){
+    const toks=m[2].split(/[,;\s]+/).filter(Boolean);
+    if(m[1]==='semana'){const mp={dom:0,lun:1,mar:2,mie:3,jue:4,vie:5,sab:6};const rd=[...new Set(toks.map(x=>mp[x.slice(0,3)]).filter(x=>x!=null))];if(rd.length)return['wd',rd]}
+    else{const rd=[...new Set(toks.map(x=>x.startsWith('ult')?0:parseInt(x,10)).filter(x=>x===0||(x>=1&&x<=31)))];if(rd.length)return['md',rd]}
+  }
+  return[prep(v),[]];
+}
+function loadJSZip(){return new Promise((ok,no)=>{if(window.JSZip)return ok();const s=document.createElement('script');s.src='jszip.min.js';s.onload=ok;s.onerror=()=>no(new Error('lib'));document.head.appendChild(s)})}
+function saveBlob(bytes,name){const blob=new Blob([bytes],{type:XMIME});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+function catSheet(starter){
+  let l=cats();if(!l.length&&starter)l=['Casa','Finanzas','Viajes'];
+  const s=XLSX.utils.aoa_to_sheet([['Categoría','Color (1 a 8)'],...l.map(c=>[c,ci(c)+1])]);s['!cols']=[{wch:28},{wch:16}];return s;
+}
+async function withValidations(bytes){
+  try{
+    await loadJSZip();
+    const z=await JSZip.loadAsync(bytes),f=z.file('xl/worksheets/sheet1.xml');if(!f)return bytes;
+    const v=(sq,fm,msg)=>'<dataValidation type="list" allowBlank="1" showInputMessage="'+(msg?1:0)+'" showErrorMessage="0"'+(msg?' promptTitle="Repetir" prompt="'+msg+'"':'')+' sqref="'+sq+'"><formula1>'+fm+'</formula1></dataValidation>';
+    const dv='<dataValidations count="4">'
+      +v('B2:B500','"Periódicas,Prioridad 1,Prioridad 2,Prioridad 3"')
+      +v('C2:C500',"OFFSET('Categorías'!$A$2,0,0,MAX(1,COUNTA('Categorías'!$A$2:$A$500)),1)")
+      +v('E2:E500','"No,Cada día,Cada semana,Cada mes"','Elige de la lista o escribe: Cada semana: Lun, Mié  /  Cada mes: 1, 15, último')
+      +v('H2:H500','"No,Sí"')+'</dataValidations>';
+    let x=await f.async('string');
+    if(!x.includes('</sheetData>'))return bytes;
+    z.file('xl/worksheets/sheet1.xml',x.replace('</sheetData>','</sheetData>'+dv));
+    return await z.generateAsync({type:'uint8array',compression:'DEFLATE'});
+  }catch(e){return bytes}
+}
+async function downloadTemplate(){
+  try{
+    await loadXLSX();
+    const ex=cats(),c1=ex[0]||'Finanzas',c2=ex[1]||'Viajes';
+    const rows=[['Tarea','Prioridad','Categoría','Fecha límite','Repetir','Notas','Pasos','Hecha'],
+      ['Ejemplo: revisar avance de préstamos','Periódicas',c1,'','Cada mes','Mirar el extracto del banco','Descargar extracto; Comparar con el presupuesto','No'],
+      ['Ejemplo: plan de viaje','Prioridad 2',c2,xdate('2027-03-15'),'No','Buscar vuelos y hoteles','','No'],
+      ['Ejemplo: idea de negocio','','','','','','','']];
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[38,14,16,13,22,32,44,8].map(w=>({wch:w}));
+    const c=ws['D3'];if(c&&typeof c.v==='number')c.z='dd/mm/yyyy';
+    const ins=XLSX.utils.aoa_to_sheet([['Cómo llenar la hoja “Tareas”'],[''],
+      ['1. Cada fila es una tarea. Borra las filas de ejemplo antes de importar.'],
+      ['2. No cambies los nombres de la primera fila. El orden de las columnas sí puede cambiar.'],
+      ['3. Categoría: elige de la lista. Si necesitas otra, agrégala en la hoja “Categorías” y aparecerá en la lista (también puedes escribirla directamente).'],
+      [''],
+      ['Tarea','Obligatoria. El nombre de la tarea.'],
+      ['Prioridad','Periódicas, Prioridad 1, Prioridad 2 o Prioridad 3. Vacía = va a la Bandeja para clasificarla después.'],
+      ['Categoría','Una de tu lista de categorías.'],
+      ['Fecha límite','Una fecha de Excel o escrita como 25/12/2026 (día/mes/año).'],
+      ['Repetir','No, Cada día, Cada semana o Cada mes. Para días específicos escribe: “Cada semana: Lun, Mié, Vie” o “Cada mes: 1, 15, último”.'],
+      ['Notas','Texto libre.'],
+      ['Pasos','Varios pasos en la misma celda, separados por punto y coma ( ; ).'],
+      ['Hecha','Sí si ya está terminada, No si está pendiente.'],
+      [''],
+      ['4. Guarda como .xlsx y en la app ve a Respaldo → Importar y fusionar.']]);
+    ins['!cols']=[{wch:26},{wch:100}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Tareas');XLSX.utils.book_append_sheet(wb,catSheet(true),'Categorías');XLSX.utils.book_append_sheet(wb,ins,'Instrucciones');
+    saveBlob(await withValidations(XLSX.write(wb,{bookType:'xlsx',type:'array'})),'plantilla-tareas.xlsx');
+    toast('Plantilla descargada con tus categorías');
+  }catch(e){toast('No pude crear la plantilla. Intenta de nuevo con internet',5000)}
+}
 function xdate(s){if(!s)return'';const a=s.split('-').map(Number);return Math.round(Date.UTC(a[0],a[1]-1,a[2])/864e5)+25569}
 async function buildXlsxBytes(){
   await loadXLSX();
   const PN={per:'Periódicas',p1:'Prioridad 1',p2:'Prioridad 2',p3:'Prioridad 3'},RN={d:'Cada día',w:'Cada semana',m:'Cada mes'};
   const rows=[['Tarea','Prioridad','Categoría','Fecha límite','Repetir','Notas','Pasos','Hecha','ID','Actualizada','Orden']];
-  S.tasks.forEach(t=>rows.push([t.title,PN[t.prio]||'',t.cat||'',xdate(t.due),RN[t.rep]||'No',t.notes||'',(t.steps||[]).map(s=>(s.d?'✓ ':'')+s.t).join('; '),t.done?'Sí':'No',t.id,t.updatedAt||0,t.ord||0]));
+  S.tasks.forEach(t=>rows.push([t.title,PN[t.prio]||'',t.cat||'',xdate(t.due),repXl(t),t.notes||'',(t.steps||[]).map(s=>(s.d?'✓ ':'')+s.t).join('; '),t.done?'Sí':'No',t.id,t.updatedAt||0,t.ord||0]));
   const ws=XLSX.utils.aoa_to_sheet(rows);
   for(let r=1;r<rows.length;r++){const c=ws[XLSX.utils.encode_cell({r,c:3})];if(c&&typeof c.v==='number')c.z='dd/mm/yyyy'}
   ws['!cols']=[38,14,16,13,14,32,40,8,14,16,10].map(w=>({wch:w}));
-  const cs=XLSX.utils.aoa_to_sheet([['Categoría','Color (1 a 8)'],...cats().map(c=>[c,ci(c)+1])]);cs['!cols']=[{wch:24},{wch:14}];
+  const cs=catSheet();
   const ds=XLSX.utils.aoa_to_sheet([['ID','Eliminada (ms)'],...Object.keys(S.del).map(id=>[id,S.del[id]])]);ds['!cols']=[{wch:18},{wch:18}];
-  const ls=XLSX.utils.aoa_to_sheet([['Respaldo de Mis Tareas'],['Exportado el '+new Date().toLocaleString('es-CO')],[''],['Hoja Tareas: tus tareas. Puedes editarla; no cambies las columnas ID ni Actualizada.'],['Hoja Colores: el color de cada categoría (1 a 8).'],['Hoja Eliminadas: sirve para que un borrado también se aplique al fusionar con otro dispositivo. No la edites.'],['Para recuperar tus datos: en la app, Respaldo → Importar y fusionar (o Importar y reemplazar).']]);ls['!cols']=[{wch:100}];
+  const ls=XLSX.utils.aoa_to_sheet([['Respaldo de Mis Tareas'],['Exportado el '+new Date().toLocaleString('es-CO')],[''],['Hoja Tareas: tus tareas. Puedes editarla; no cambies las columnas ID ni Actualizada.'],['Hoja Categorías: tus categorías y su color (1 a 8). Agrega más filas y aparecerán en la lista desplegable de la columna Categoría.'],['Hoja Eliminadas: sirve para que un borrado también se aplique al fusionar con otro dispositivo. No la edites.'],['Para recuperar tus datos: en la app, Respaldo → Importar y fusionar (o Importar y reemplazar).']]);ls['!cols']=[{wch:100}];
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Tareas');XLSX.utils.book_append_sheet(wb,cs,'Colores');XLSX.utils.book_append_sheet(wb,ds,'Eliminadas');XLSX.utils.book_append_sheet(wb,ls,'Léeme');
-  return XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  XLSX.utils.book_append_sheet(wb,ws,'Tareas');XLSX.utils.book_append_sheet(wb,cs,'Categorías');XLSX.utils.book_append_sheet(wb,ds,'Eliminadas');XLSX.utils.book_append_sheet(wb,ls,'Léeme');
+  return withValidations(XLSX.write(wb,{bookType:'xlsx',type:'array'}));
 }
 function xname(){return 'tareas-respaldo-'+today()+'.xlsx'}
 async function exportData(){
@@ -385,22 +504,25 @@ async function readExcel(f){
     const title=String(g(r,'title')).trim();if(!title)return;
     const pr=pprio(g(r,'prio'));if(!pr[1])badP++;
     const dv=g(r,'due'),due=pdate(dv);if(dv!==''&&!due)badD++;
+    const rx=prepx(g(r,'rep'));
     const dn=['si','x','hecha','hecho','true','1','completada','listo','terminada'].includes(nk(g(r,'done')));
     const u=g(r,'upd'),upd=typeof u==='number'?u:(Date.parse(u)||0);
-    rt.push({id:String(g(r,'id')).trim(),title:title.slice(0,200),notes:String(g(r,'notes')).trim(),prio:pr[0],cat:String(g(r,'cat')).trim().slice(0,40),due,rep:prep(g(r,'rep')),myday:'',done:dn,doneAt:dn?(upd||Date.now()):0,updatedAt:upd,ord:(typeof g(r,'ord')==='number'?g(r,'ord'):undefined),
+    rt.push({id:String(g(r,'id')).trim(),title:title.slice(0,200),notes:String(g(r,'notes')).trim(),prio:pr[0],cat:String(g(r,'cat')).trim().slice(0,40),due,rep:rx[0],rd:rx[1],myday:'',done:dn,doneAt:dn?(upd||Date.now()):0,updatedAt:upd,ord:(typeof g(r,'ord')==='number'?g(r,'ord'):undefined),
       steps:String(g(r,'steps')).split(/[;\n]/).map(x=>x.trim()).filter(Boolean).map(x=>x.startsWith('✓ ')?{t:x.slice(2).trim(),d:true}:{t:x,d:false})});
   });
   const cc={},del={};
   const sh=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''}).slice(1):[];
-  sh('Colores').forEach(r=>{const n=Number(r[1]);if(r[0]&&n>=1&&n<=8)cc[String(r[0])]=n-1});
+  const cl=[];
+  (wb.Sheets['Categorías']?sh('Categorías'):sh('Colores')).forEach(r=>{const nm=String(r[0]).trim();if(!nm)return;if(!cl.includes(nm))cl.push(nm);const n=Number(r[1]);if(n>=1&&n<=8)cc[nm]=n-1});
   sh('Eliminadas').forEach(r=>{const n=Number(r[1]);if(r[0]&&n>0)del[String(r[0])]=n});
-  return{rt,cc,del,badP,badD};
+  return{rt,cc,del,cl,badP,badD};
 }
-function cleanTask(t){return{id:t.id||uid(),title:String(t.title),notes:t.notes||'',prio:(t.prio===''||P[t.prio])?t.prio:'p1',cat:t.cat||'',due:t.due||'',rep:t.rep||'',myday:t.myday||'',done:!!t.done,doneAt:t.doneAt||0,updatedAt:t.updatedAt||0,ord:typeof t.ord==='number'?t.ord:undefined,steps:Array.isArray(t.steps)?t.steps:[]}}
-function applyImport(rt,cc,del,mode){
+function cleanTask(t){return{id:t.id||uid(),title:String(t.title),notes:t.notes||'',prio:(t.prio===''||P[t.prio])?t.prio:'p1',cat:t.cat||'',due:t.due||'',rep:t.rep||'',rd:Array.isArray(t.rd)?t.rd:[],myday:t.myday||'',done:!!t.done,doneAt:t.doneAt||0,updatedAt:t.updatedAt||0,ord:typeof t.ord==='number'?t.ord:undefined,steps:Array.isArray(t.steps)?t.steps:[]}}
+function applyImport(rt,cc,del,mode,cl){
+  cl=cl||[];
   if(mode==='replace'){
     if(!confirm('Esto reemplazará tus '+S.tasks.length+' tareas actuales por las '+rt.length+' del archivo. ¿Continuar?'))return'';
-    S.tasks=rt.map(t=>({...t,id:t.id||uid(),updatedAt:t.updatedAt||Date.now()}));S.cc=cc;S.del=del;
+    S.tasks=rt.map(t=>({...t,id:t.id||uid(),updatedAt:t.updatedAt||Date.now()}));S.cc=cc;S.del=del;S.catList=[...cl];
     return'Archivo importado: '+rt.length+' tareas';
   }
   Object.keys(del).forEach(id=>{S.del[id]=Math.max(S.del[id]||0,del[id])});
@@ -420,20 +542,21 @@ function applyImport(rt,cc,del,mode){
   const n=S.tasks.length;
   S.tasks=S.tasks.filter(t=>!(S.del[t.id]&&S.del[t.id]>=(t.updatedAt||0)));
   S.cc=Object.assign({},cc,S.cc);
+  S.catList=S.catList||[];cl.forEach(c=>{if(!S.catList.includes(c))S.catList.push(c)});
   const rem=n-S.tasks.length;
   return'Fusionado: '+add+' nuevas, '+upd+' actualizadas'+(rem?', '+rem+' eliminadas':'')+(dup?', '+dup+' ya existían':'');
 }
 async function importAny(f){
   try{
-    let rt,cc={},del={},badP=0,badD=0;
+    let rt,cc={},del={},cl=[],badP=0,badD=0;
     if(/\.json$/i.test(f.name)){
       const d=JSON.parse(await readText(f));if(!d||!Array.isArray(d.tasks))throw 0;
-      rt=d.tasks.filter(t=>t&&t.title).map(cleanTask);cc=d.cc||{};del=d.del||{};
-    }else{({rt,cc,del,badP,badD}=await readExcel(f))}
+      rt=d.tasks.filter(t=>t&&t.title).map(cleanTask);cc=d.cc||{};del=d.del||{};cl=d.catList||[];
+    }else{({rt,cc,del,cl,badP,badD}=await readExcel(f))}
     if(!rt.length){toast('No encontré tareas en el archivo',4000);return}
     if(importMode==='merge'&&!confirm('Se leyeron '+rt.length+' tareas del archivo. ¿Fusionarlas con las tuyas?'))return;
-    const msg=applyImport(rt,cc,del,importMode);if(!msg)return;
-    ensureOrd(S);save();render();
+    const msg=applyImport(rt,cc,del,importMode,cl);if(!msg)return;
+    ensureOrd(S);syncCats();save();render();
     toast(msg+(badP?'. '+badP+' con prioridad no reconocida quedaron en la Bandeja':'')+(badD?'. '+badD+' con fecha no reconocida quedaron sin fecha':''),6000);
   }catch(e){toast(e&&e.message==='header'?'No encontré la columna “Tarea” en la primera fila. Descarga la plantilla para ver el formato.':'No pude leer el archivo. Verifica que sea un Excel (.xlsx)',5000)}
 }
@@ -442,7 +565,6 @@ document.addEventListener('click',e=>{
   const c=e.target.closest('[data-c]');if(c&&c.parentNode.id==='chips'){cat=c.dataset.c;render();return}
   const n=e.target.closest('#nav button');if(n){view=n.dataset.v;render();$('main').scrollTop=0;return}
   if(e.target.id==='fab'){openSheet(null);return}
-  if(e.target.id==='ov'){closeSheet();return}
   const a=e.target.closest('[data-act]');if(!a)return;
   const id=(a.closest('.card')||{dataset:{}}).dataset.id,i=+a.dataset.i;
   switch(a.dataset.act){
@@ -465,6 +587,12 @@ document.addEventListener('click',e=>{
     case'wprev':wk--;render();break;
     case'wnext':wk++;render();break;
     case'addd':openSheet(null,'p1',a.dataset.d);break;
+    case'tpl':downloadTemplate();break;
+    case'catadd':{const v=$('newcat').value.trim();if(!v)break;if(cats().some(c=>nk(c)===nk(v))){toast('Esa categoría ya existe');break}S.catList.push(v);save();render();toast('Categoría agregada');break}
+    case'catdel':{const c=a.dataset.c,n=S.tasks.filter(t=>t.cat===c);
+      if(n.length&&!confirm('Hay '+n.length+' tareas con la categoría “'+c+'”. Quedarán sin categoría. ¿Continuar?'))break;
+      n.forEach(t=>{t.cat='';t.updatedAt=Date.now()});S.catList=S.catList.filter(x=>x!==c);save();render();break}
+    case'rdt':{const n=+a.dataset.n,k=draft.rd.indexOf(n);if(k<0)draft.rd.push(n);else draft.rd.splice(k,1);renderRd();break}
     case'sw':draft._cc=i;renderSw();break;
     case'clean':if(confirm('¿Borrar todas las tareas hechas?')){S.tasks.filter(t=>t.done).forEach(t=>S.del[t.id]=Date.now());S.tasks=S.tasks.filter(t=>!t.done);save();render();toast('Listo')}break;
   }
@@ -473,15 +601,17 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&draft)closeSheet();
   if(e.key==='Escape'&&e.target.id==='q')toggleSearch(false);
   if(e.key==='Enter'&&e.target.id==='f-s'){e.preventDefault();document.querySelector('[data-act=stepadd]').click()}
+  if(e.key==='Enter'&&e.target.id==='newcat'){e.preventDefault();document.querySelector('[data-act=catadd]').click()}
   if(e.key==='Enter'&&e.target.id==='qa'){e.preventDefault();qadd()}
   if(e.key==='Enter'&&e.target.id==='f-t'){e.preventDefault();saveDraft()}
   if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('ct')){e.preventDefault();e.target.click()}
 });
 document.addEventListener('change',e=>{
+  if(e.target.id==='f-r'&&draft){setRep(e.target.value);return}
   const f=e.target.dataset&&e.target.dataset.f;if(!f)return;
   const c=e.target.closest('.card'),t=c&&S.tasks.find(x=>x.id===c.dataset.id);if(!t)return;
   if(f==='prio'){if(!e.target.value)return;t.prio=e.target.value;t.ord=nextOrd();t.updatedAt=Date.now();save();render();toast('Pasó al Tablero: '+P[t.prio])}
-  else{t.cat=e.target.value.trim();t.updatedAt=Date.now();save()}
+  else{t.cat=e.target.value.trim();t.updatedAt=Date.now();syncCats();save()}
 });
 function toggleSearch(on){const sb=$('sb');sb.hidden=!on;if(on)$('q').focus();else{$('q').value='';if(q){q='';render()}}}
 $('sbtn').addEventListener('click',()=>toggleSearch($('sb').hidden));
