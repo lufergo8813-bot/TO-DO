@@ -138,7 +138,7 @@ const KEY='tareas_v1';
 const P={per:'Periódicas',p1:'Prioridad 1',p2:'Prioridad 2',p3:'Prioridad 3'};
 const REP={'':'No se repite',d:'Cada día',w:'Cada semana',m:'Cada mes',wd:'Días de la semana…',md:'Días del mes…'};
 const WD=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'],WORD=[1,2,3,4,5,6,0];
-let S=load(),view='board',cat='',draft=null,isNew=false,wk=0,importMode='merge',q='';
+let S=load(),view='board',sel=[],draft=null,isNew=false,wk=0,importMode='merge',q='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function load(){let d=null;try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!d||!Array.isArray(d.tasks))d={tasks:[],lastBackup:0};d.cc=d.cc||{};d.del=d.del||{};ensureOrd(d);d.catList=Array.isArray(d.catList)?d.catList:[];return d}
@@ -180,7 +180,7 @@ function cstyle(n){const p=PAL[ci(n)];return'background:'+p[0]+';color:'+p[1]}
 const BM=()=>S.bm==='cat'?'cat':'prio';
 function pb(t){return t.prio?`<span class="pbadge t-${t.prio}">${P[t.prio]}</span> `:'<span class="pbadge" style="background:#e4e8ef;color:#444">Bandeja</span> '}
 function mt(t){return!q||nk(t.title+' '+(t.notes||'')+' '+(t.cat||'')+' '+(t.steps||[]).map(s=>s.t).join(' ')).includes(q)}
-function vis(t){return(!cat||t.cat===cat)&&mt(t)}
+function vis(t){return(!sel.length||sel.includes(t.cat||''))&&mt(t)}
 
 function card(t){
   const m=[];
@@ -204,8 +204,11 @@ function ensureOrd(d){
 
 function renderChips(){
   const c=cats();
-  $('chips').style.display=(view==='more'||view==='inbox'||(view==='board'&&BM()==='cat')||!c.length)?'none':'flex';
-  $('chips').innerHTML=`<button data-c="" class="${cat===''?'on':''}">Todas</button>`+c.map(x=>`<button data-c="${esc(x)}" class="${cat===x?'on':''}"><i class="dot" style="background:${PAL[ci(x)][1]}"></i>${esc(x)}</button>`).join('');
+  $('chips').style.display=(view==='more'||view==='inbox'||!c.length)?'none':'flex';
+  const noCat=S.tasks.some(t=>!t.done&&!t.cat)||sel.includes('');
+  $('chips').innerHTML=`<button data-c="__all" aria-pressed="${!sel.length}" class="${!sel.length?'on':''}">Todas</button>`
+    +c.map(x=>`<button data-c="${esc(x)}" aria-pressed="${sel.includes(x)}" class="${sel.includes(x)?'on':''}"><i class="dot" style="background:${PAL[ci(x)][1]}"></i>${esc(x)}</button>`).join('')
+    +(noCat?`<button data-c="__none" aria-pressed="${sel.includes('')}" class="${sel.includes('')?'on':''}">Sin categoría</button>`:'');
 }
 function bannerHTML(){
   if(!S.tasks.length)return'';
@@ -225,7 +228,7 @@ function renderBoard(){
 function segHTML(){const m=BM();return`<div class="seg"><button data-act="bm" data-m="prio" class="${m==='prio'?'on':''}">Por prioridad</button><button data-act="bm" data-m="cat" class="${m==='cat'?'on':''}">Por categoría</button></div><p class="hint" style="margin:6px 14px 0">Mantén presionada una tarjeta y arrástrala para ordenarla o cambiarla de columna.</p>`}
 function renderCatBoard(){
   const o={p1:0,p2:1,p3:2,per:3};
-  const cols=[...cats(),''].map(n=>{
+  const cols=[...cats(),''].filter(n=>!sel.length||sel.includes(n)).map(n=>{
     const l=S.tasks.filter(t=>!t.done&&t.prio&&(t.cat||'')===n&&mt(t)).sort((a,b)=>o[a.prio]-o[b.prio]||byOrd(a,b));
     if(q&&!l.length)return'';
     const tag=n?`<span class="tag" style="${cstyle(n)}">${esc(n)}<small>${l.length}</small></span>`:`<span class="tag" style="background:#d9dee7;color:#444">Sin categoría<small>${l.length}</small></span>`;
@@ -294,7 +297,7 @@ function renderMore(){
   <div class="box"><h3>Instalar en el celular</h3><p>Android (Chrome): menú ⋮ → “Instalar app”. iPhone (Safari): botón Compartir → “Añadir a pantalla de inicio”.</p></div></div>`;
 }
 function render(){
-  if(cat&&!cats().includes(cat))cat='';
+  sel=sel.filter(x=>x===''||cats().includes(x));
   renderChips();
   $('main').innerHTML={board:()=>BM()==='cat'?renderCatBoard():renderBoard(),inbox:renderInbox,day:renderDay,week:renderWeek,plan:renderPlan,more:renderMore}[view]();
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
@@ -307,7 +310,7 @@ function render(){
 function openSheet(id,prio,due,ctg){
   const t=id&&S.tasks.find(x=>x.id===id);
   isNew=!t;
-  draft=t?JSON.parse(JSON.stringify(t)):{id:uid(),title:'',notes:'',prio:prio||'p1',cat:ctg!==undefined?ctg:cat,due:due||'',rep:'',myday:'',done:false,steps:[]};
+  draft=t?JSON.parse(JSON.stringify(t)):{id:uid(),title:'',notes:'',prio:prio||'p1',cat:ctg!==undefined?ctg:(sel.length===1?sel[0]:''),due:due||'',rep:'',myday:'',done:false,steps:[]};
   $('sheet').innerHTML=`<label for="f-t">Tarea</label><input type="text" id="f-t" value="${esc(draft.title)}" placeholder="¿Qué necesitas hacer?" maxlength="200">
   <div class="row2"><div><label for="f-p">Prioridad</label><select id="f-p"><option value="" ${draft.prio===''?'selected':''}>Sin prioridad (Bandeja)</option>${Object.keys(P).map(k=>`<option value="${k}" ${draft.prio===k?'selected':''}>${P[k]}</option>`).join('')}</select></div>
   <div><label for="f-c">Categoría</label><input type="text" id="f-c" list="cl" value="${esc(draft.cat)}" placeholder="Ej. Casa, Viajes"><datalist id="cl">${cats().map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div></div>
@@ -562,7 +565,10 @@ async function importAny(f){
 }
 
 document.addEventListener('click',e=>{
-  const c=e.target.closest('[data-c]');if(c&&c.parentNode.id==='chips'){cat=c.dataset.c;render();return}
+  const c=e.target.closest('[data-c]');if(c&&c.parentNode.id==='chips'){
+    const v=c.dataset.c;
+    if(v==='__all')sel=[];else{const k=v==='__none'?'':v,i=sel.indexOf(k);if(i<0)sel.push(k);else sel.splice(i,1)}
+    render();return}
   const n=e.target.closest('#nav button');if(n){view=n.dataset.v;render();$('main').scrollTop=0;return}
   if(e.target.id==='fab'){openSheet(null);return}
   const a=e.target.closest('[data-act]');if(!a)return;
