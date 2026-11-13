@@ -116,6 +116,9 @@ nav button{font-size:.72rem;padding:10px 2px 9px}
 .step.sdrag{opacity:.75;background:#e8f3f4;position:relative;z-index:2}
 .step.sins{box-shadow:0 -3px 0 var(--acc)}
 .step.sina{box-shadow:0 3px 0 var(--acc)}
+.sheet .step .stx{flex:1;width:auto;min-width:0;border:1px solid transparent;background:transparent;padding:7px 6px;border-radius:6px;color:var(--ink);font:inherit}
+.sheet .step .stx:focus{border-color:var(--acc);background:#fff}
+.step.sd .stx{text-decoration:line-through;color:var(--mute)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #f5a524;outline-offset:2px}
 @media(min-width:760px){.col{width:300px}.ov{align-items:center}.sheet{border-radius:16px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -334,7 +337,7 @@ function openSheet(id,prio,due,ctg){
   setTimeout(()=>{if(isNew)$('f-t').focus()},60);
 }
 function renderSteps(){
-  $('steps').innerHTML=draft.steps.map((s,i)=>`<div class="step ${s.d?'sd':''}" data-i="${i}"><button class="chk s" data-act="stepchk" data-i="${i}" aria-pressed="${!!s.d}" aria-label="Marcar paso como hecho">${s.d?'✓':''}</button><span>${esc(s.t)}</span><button type="button" class="sh" aria-label="Mover paso (arrastra, o usa las flechas arriba y abajo)" title="Arrastra para ordenar">⋮⋮</button><button class="x" data-act="stepdel" data-i="${i}" aria-label="Quitar paso">×</button></div>`).join('');
+  $('steps').innerHTML=draft.steps.map((s,i)=>`<div class="step ${s.d?'sd':''}" data-i="${i}"><button class="chk s" data-act="stepchk" data-i="${i}" aria-pressed="${!!s.d}" aria-label="Marcar paso como hecho">${s.d?'✓':''}</button><input type="text" class="stx" data-i="${i}" value="${esc(s.t)}" maxlength="120" aria-label="Texto del paso (toca para editar)"><button type="button" class="sh" aria-label="Mover paso (arrastra, o usa las flechas arriba y abajo)" title="Arrastra para ordenar">⋮⋮</button><button class="x" data-act="stepdel" data-i="${i}" aria-label="Quitar paso">×</button></div>`).join('');
 }
 function renderSw(){
   const n=$('f-c').value.trim(),sw=$('sw');
@@ -365,6 +368,7 @@ function saveDraft(){
     if(!draft.due)draft.due=nextMatch(draft.rep,draft.rd,today(),true);
   }else draft.rd=[];
   draft.myday=$('f-m').checked?today():(draft.myday===today()?'':draft.myday);
+  draft.steps=draft.steps.filter(s=>String(s.t).trim());
   const pend=$('f-s').value.trim();if(pend)draft.steps.push({t:pend,d:false});
   const old=isNew?null:S.tasks.find(x=>x.id===draft.id);if(!old||old.prio!==draft.prio)draft.ord=nextOrd();
   const cc=draft._cc;delete draft._cc;if(draft.cat&&cc!=null)S.cc[draft.cat]=cc;draft.updatedAt=Date.now();
@@ -620,6 +624,7 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'&&draft)closeSheet();
   if(e.key==='Escape'&&e.target.id==='q')toggleSearch(false);
+  if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('stx')){e.preventDefault();e.target.blur()}
   if(e.key==='Enter'&&e.target.id==='f-s'){e.preventDefault();document.querySelector('[data-act=stepadd]').click()}
   if(e.key==='Enter'&&e.target.id==='newcat'){e.preventDefault();document.querySelector('[data-act=catadd]').click()}
   if(e.key==='Enter'&&e.target.id==='qa'){e.preventDefault();qadd()}
@@ -628,6 +633,12 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='f-r'&&draft){setRep(e.target.value);return}
+  if(e.target.classList&&e.target.classList.contains('stx')&&draft){
+    const i=+e.target.dataset.i,v=e.target.value.trim();
+    if(!draft.steps[i])return;
+    if(!v){draft.steps.splice(i,1);renderSteps()}else draft.steps[i].t=v;
+    return;
+  }
   const f=e.target.dataset&&e.target.dataset.f;if(!f)return;
   const c=e.target.closest('.card'),t=c&&S.tasks.find(x=>x.id===c.dataset.id);if(!t)return;
   if(f==='prio'){if(!e.target.value)return;t.prio=e.target.value;t.ord=nextOrd();t.updatedAt=Date.now();save();render();toast('Pasó al Tablero: '+P[t.prio])}
@@ -640,7 +651,8 @@ $('q').addEventListener('input',e=>{
   q=nk(e.target.value);const b=document.querySelector('.board'),sl=b?b.scrollLeft:0,st=$('main').scrollTop;
   render();const b2=document.querySelector('.board');if(b2)b2.scrollLeft=sl;$('main').scrollTop=st;
 });
-document.addEventListener('input',e=>{if(e.target.id==='f-c'&&draft){draft._cc=null;renderSw()}});
+document.addEventListener('input',e=>{
+  if(e.target.classList&&e.target.classList.contains('stx')&&draft&&draft.steps[+e.target.dataset.i]){draft.steps[+e.target.dataset.i].t=e.target.value;return}if(e.target.id==='f-c'&&draft){draft._cc=null;renderSw()}});
 document.addEventListener('click',e=>{if(Date.now()-lastDrag<350){e.stopPropagation();e.preventDefault()}},true);
 function moveStep(i,j){if(!draft||j<0||j>=draft.steps.length||i===j)return;const s=draft.steps.splice(i,1)[0];draft.steps.splice(j,0,s);renderSteps()}
 let sd=null;
