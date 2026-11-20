@@ -121,6 +121,18 @@ nav button{font-size:.72rem;padding:10px 2px 9px}
 .step.sd .stx{text-decoration:line-through;color:var(--mute)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #f5a524;outline-offset:2px}
 @media(min-width:760px){.col{width:300px}.ov{align-items:center}.sheet{border-radius:16px}}
+@media(min-width:900px){
+  .ov{background:none;pointer-events:none;align-items:stretch;justify-content:flex-end}
+  .sheet{pointer-events:auto;width:440px;max-width:440px;height:100%;max-height:100%;border-radius:0;box-shadow:-6px 0 18px rgba(20,30,50,.22)}
+  body.so{padding-right:440px}
+  body.so .fab{right:456px}
+}
+.card.sel{outline:2px solid var(--acc);outline-offset:1px}
+.sheet .step{align-items:flex-start}
+.sheet .step .chk{margin-top:7px}
+.sheet .step .sh,.sheet .step .x{margin-top:3px}
+.sheet .step .stx{resize:none;overflow:hidden;line-height:1.3;min-height:36px;overflow-wrap:anywhere}
+.sheet textarea.ns{min-height:40px;resize:none;overflow:hidden;line-height:1.3}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -147,7 +159,7 @@ const KEY='tareas_v1';
 const P={per:'Periódicas',p1:'Prioridad 1',p2:'Prioridad 2',p3:'Prioridad 3'};
 const REP={'':'No se repite',d:'Cada día',w:'Cada semana',m:'Cada mes',wd:'Días de la semana…',md:'Días del mes…'};
 const WD=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'],WORD=[1,2,3,4,5,6,0];
-let S=load(),view='board',sel=[],draft=null,isNew=false,wk=0,importMode='merge',q='';
+let S=load(),view='board',sel=[],draft=null,isNew=false,wk=0,importMode='merge',q='',dirty=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function load(){let d=null;try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!d||!Array.isArray(d.tasks))d={tasks:[],lastBackup:0};d.cc=d.cc||{};d.del=d.del||{};ensureOrd(d);d.catList=Array.isArray(d.catList)?d.catList:[];return d}
@@ -314,9 +326,20 @@ function render(){
   $('fab').style.display=(view==='more'||view==='inbox')?'none':'block';
   const nb=S.tasks.filter(t=>!t.done&&!t.prio).length;
   document.querySelector('#nav [data-v=inbox]').innerHTML='Bandeja'+(nb?`<b class="bd">${nb}</b>`:'');
+  markSel();
 }
 
+function grow(el){el.style.height='auto';if(el.scrollHeight>0)el.style.height=el.scrollHeight+'px'}
+function markSel(){document.querySelectorAll('.card.sel').forEach(c=>c.classList.remove('sel'));if(draft&&!isNew)document.querySelectorAll('.card[data-id="'+draft.id+'"]').forEach(c=>c.classList.add('sel'))}
+function renderKeep(){const m=$('main'),b=document.querySelector('.board'),st=m.scrollTop,sl=b?b.scrollLeft:0;render();const b2=document.querySelector('.board');m.scrollTop=st;if(b2)b2.scrollLeft=sl}
+function syncOpenDraft(id){
+  if(!draft||isNew||draft.id!==id)return;const t=S.tasks.find(x=>x.id===id);if(!t)return;
+  Object.assign(draft,{prio:t.prio,cat:t.cat,ord:t.ord,done:t.done,doneAt:t.doneAt});
+  if($('f-p'))$('f-p').value=draft.prio;if($('f-c')){$('f-c').value=draft.cat||'';renderSw()}
+}
 function openSheet(id,prio,due,ctg){
+  if(draft&&id&&draft.id===id)return;
+  if(draft&&dirty&&!(isNew&&!$('f-t').value.trim())){if(!applyDraft())return;renderKeep()}
   const t=id&&S.tasks.find(x=>x.id===id);
   isNew=!t;
   draft=t?JSON.parse(JSON.stringify(t)):{id:uid(),title:'',notes:'',prio:prio||'p1',cat:ctg!==undefined?ctg:(sel.length===1?sel[0]:''),due:due||'',rep:'',myday:'',done:false,steps:[]};
@@ -329,15 +352,17 @@ function openSheet(id,prio,due,ctg){
   <div id="rd" class="rd"></div>
   <label><input type="checkbox" id="f-m" ${draft.myday===today()?'checked':''}> ☀ Agregar a Mi día</label>
   <label>Pasos</label><div id="steps"></div>
-  <div class="row2" style="grid-template-columns:1fr auto"><input type="text" id="f-s" placeholder="Agregar paso" maxlength="120"><button class="btn sec" data-act="stepadd">Agregar</button></div>
+  <div class="row2" style="grid-template-columns:1fr auto;align-items:start"><textarea id="f-s" class="ns" rows="1" placeholder="Agregar paso" aria-label="Agregar paso"></textarea><button class="btn sec" data-act="stepadd">Agregar</button></div>
   <label for="f-n">Notas</label><textarea id="f-n">${esc(draft.notes)}</textarea>
   <div class="acts">${isNew?'':'<button class="btn del" data-act="del">Eliminar</button>'}<button class="btn sec" data-act="close">Cancelar</button><button class="btn" data-act="save">Guardar</button></div>`;
   renderSteps();renderSw();renderRd();
-  $('ov').classList.add('open');
+  $('ov').classList.add('open');document.body.classList.add('so');dirty=false;markSel();
+  document.querySelectorAll('#steps .stx,#f-s').forEach(grow);
   setTimeout(()=>{if(isNew)$('f-t').focus()},60);
 }
 function renderSteps(){
-  $('steps').innerHTML=draft.steps.map((s,i)=>`<div class="step ${s.d?'sd':''}" data-i="${i}"><button class="chk s" data-act="stepchk" data-i="${i}" aria-pressed="${!!s.d}" aria-label="Marcar paso como hecho">${s.d?'✓':''}</button><input type="text" class="stx" data-i="${i}" value="${esc(s.t)}" maxlength="120" aria-label="Texto del paso (toca para editar)"><button type="button" class="sh" aria-label="Mover paso (arrastra, o usa las flechas arriba y abajo)" title="Arrastra para ordenar">⋮⋮</button><button class="x" data-act="stepdel" data-i="${i}" aria-label="Quitar paso">×</button></div>`).join('');
+  $('steps').innerHTML=draft.steps.map((s,i)=>`<div class="step ${s.d?'sd':''}" data-i="${i}"><button class="chk s" data-act="stepchk" data-i="${i}" aria-pressed="${!!s.d}" aria-label="Marcar paso como hecho">${s.d?'✓':''}</button><textarea class="stx" rows="1" data-i="${i}" aria-label="Texto del paso (toca para editar)">${esc(s.t)}</textarea><button type="button" class="sh" aria-label="Mover paso (arrastra, o usa las flechas arriba y abajo)" title="Arrastra para ordenar">⋮⋮</button><button class="x" data-act="stepdel" data-i="${i}" aria-label="Quitar paso">×</button></div>`).join('');
+  $('steps').querySelectorAll('.stx').forEach(grow);
 }
 function renderSw(){
   const n=$('f-c').value.trim(),sw=$('sw');
@@ -357,14 +382,14 @@ function renderRd(){
   else if(draft.rep==='md')el.innerHTML='<span>¿Qué días del mes? Si un mes no tiene ese día, se usa su último día.</span>'+Array.from({length:31},(_,i)=>i+1).map(n=>`<button type="button" class="${on(n)}" data-act="rdt" data-n="${n}">${n}</button>`).join('')+`<button type="button" class="${on(0)}" data-act="rdt" data-n="0">Último día</button>`;
   else el.innerHTML='';
 }
-function closeSheet(){$('ov').classList.remove('open');draft=null}
-function saveDraft(){
+function closeSheet(){$('ov').classList.remove('open');document.body.classList.remove('so');draft=null;dirty=false;markSel()}
+function applyDraft(){
   const title=$('f-t').value.trim();
-  if(!title){toast('Escribe el nombre de la tarea');$('f-t').focus();return}
+  if(!title){toast('Escribe el nombre de la tarea');$('f-t').focus();return false}
   Object.assign(draft,{title,notes:$('f-n').value.trim(),prio:$('f-p').value,cat:$('f-c').value.trim(),due:$('f-d').value,rep:$('f-r').value});
   draft.rd=draft.rd||[];
   if(draft.rep==='wd'||draft.rep==='md'){
-    if(!draft.rd.length){toast('Elige al menos un día para repetir');return}
+    if(!draft.rd.length){toast('Elige al menos un día para repetir');return false}
     if(!draft.due)draft.due=nextMatch(draft.rep,draft.rd,today(),true);
   }else draft.rd=[];
   draft.myday=$('f-m').checked?today():(draft.myday===today()?'':draft.myday);
@@ -373,11 +398,12 @@ function saveDraft(){
   const old=isNew?null:S.tasks.find(x=>x.id===draft.id);if(!old||old.prio!==draft.prio)draft.ord=nextOrd();
   const cc=draft._cc;delete draft._cc;if(draft.cat&&cc!=null)S.cc[draft.cat]=cc;draft.updatedAt=Date.now();
   if(isNew)S.tasks.push(draft);else S.tasks[S.tasks.findIndex(x=>x.id===draft.id)]=draft;
-  syncCats();save();closeSheet();render();
+  syncCats();save();return true;
 }
+function saveDraft(){if(applyDraft()){closeSheet();render()}}
 function toggle(id){
   const t=S.tasks.find(x=>x.id===id);if(!t)return;
-  t.done=!t.done;t.doneAt=t.done?Date.now():0;t.updatedAt=Date.now();
+  t.done=!t.done;t.doneAt=t.done?Date.now():0;t.updatedAt=Date.now();syncOpenDraft(t.id);
   if(t.done&&t.rep){S.tasks.push({...t,id:uid(),ord:nextOrd(),done:false,doneAt:0,updatedAt:Date.now(),due:nextDue(t.due,t.rep,t.rd),myday:'',steps:(t.steps||[]).map(s=>({t:s.t,d:false}))});toast('Hecha. Creé la siguiente repetición')}
   else toast(t.done?'¡Tarea completada!':'Tarea reabierta');
   save();render();
@@ -590,7 +616,7 @@ document.addEventListener('click',e=>{
     case'close':closeSheet();break;
     case'save':saveDraft();break;
     case'del':if(confirm('¿Eliminar esta tarea?')){S.del[draft.id]=Date.now();S.tasks=S.tasks.filter(x=>x.id!==draft.id);save();closeSheet();render();toast('Tarea eliminada')}break;
-    case'stepadd':{const v=$('f-s');if(v.value.trim()){draft.steps.push({t:v.value.trim(),d:false});v.value='';renderSteps()}break}
+    case'stepadd':{const v=$('f-s');if(v.value.trim()){draft.steps.push({t:v.value.trim(),d:false});v.value='';grow(v);renderSteps()}break}
     case'stepchk':{
       const s=draft.steps.splice(i,1)[0];s.d=!s.d;
       if(s.d)draft.steps.push(s);
@@ -641,18 +667,21 @@ document.addEventListener('change',e=>{
   }
   const f=e.target.dataset&&e.target.dataset.f;if(!f)return;
   const c=e.target.closest('.card'),t=c&&S.tasks.find(x=>x.id===c.dataset.id);if(!t)return;
-  if(f==='prio'){if(!e.target.value)return;t.prio=e.target.value;t.ord=nextOrd();t.updatedAt=Date.now();save();render();toast('Pasó al Tablero: '+P[t.prio])}
-  else{t.cat=e.target.value.trim();t.updatedAt=Date.now();syncCats();save()}
+  if(f==='prio'){if(!e.target.value)return;t.prio=e.target.value;t.ord=nextOrd();t.updatedAt=Date.now();syncOpenDraft(t.id);save();render();toast('Pasó al Tablero: '+P[t.prio])}
+  else{t.cat=e.target.value.trim();t.updatedAt=Date.now();syncOpenDraft(t.id);syncCats();save()}
 });
 function toggleSearch(on){const sb=$('sb');sb.hidden=!on;if(on)$('q').focus();else{$('q').value='';if(q){q='';render()}}}
 $('sbtn').addEventListener('click',()=>toggleSearch($('sb').hidden));
 $('qx').addEventListener('click',()=>toggleSearch(false));
+['input','change'].forEach(t=>$('sheet').addEventListener(t,()=>{dirty=true}));
+$('sheet').addEventListener('click',e=>{const a=e.target.closest('[data-act]');if(a&&!['close','save','del'].includes(a.dataset.act))dirty=true});
 $('q').addEventListener('input',e=>{
   q=nk(e.target.value);const b=document.querySelector('.board'),sl=b?b.scrollLeft:0,st=$('main').scrollTop;
   render();const b2=document.querySelector('.board');if(b2)b2.scrollLeft=sl;$('main').scrollTop=st;
 });
 document.addEventListener('input',e=>{
-  if(e.target.classList&&e.target.classList.contains('stx')&&draft&&draft.steps[+e.target.dataset.i]){draft.steps[+e.target.dataset.i].t=e.target.value;return}if(e.target.id==='f-c'&&draft){draft._cc=null;renderSw()}});
+  if(e.target.id==='f-s'){if(e.target.value.includes('\n'))e.target.value=e.target.value.replace(/\s*\n+\s*/g,' ');grow(e.target);return}
+  if(e.target.classList&&e.target.classList.contains('stx')&&draft&&draft.steps[+e.target.dataset.i]){const el=e.target;if(el.value.includes('\n'))el.value=el.value.replace(/\s*\n+\s*/g,' ');grow(el);draft.steps[+el.dataset.i].t=el.value;return}if(e.target.id==='f-c'&&draft){draft._cc=null;renderSw()}});
 document.addEventListener('click',e=>{if(Date.now()-lastDrag<350){e.stopPropagation();e.preventDefault()}},true);
 function moveStep(i,j){if(!draft||j<0||j>=draft.steps.length||i===j)return;const s=draft.steps.splice(i,1)[0];draft.steps.splice(j,0,s);renderSteps()}
 let sd=null;
@@ -705,7 +734,7 @@ function startDrag(){
 }
 function moveTo(id,k,tg){
   const t=S.tasks.find(x=>x.id===id);if(!t)return;
-  if(BM()==='cat'){if((t.cat||'')===k)return;t.cat=k;t.updatedAt=Date.now();save();render();toast('Movida a '+(k||'Sin categoría'));return}
+  if(BM()==='cat'){if((t.cat||'')===k)return;t.cat=k;t.updatedAt=Date.now();syncOpenDraft(id);save();render();toast('Movida a '+(k||'Sin categoría'));return}
   if(k==='done'){if(!t.done)toggle(id);return}
   const tk=x=>x&&S.tasks.find(y=>y.id===x.dataset.id);
   const b=tg&&tk(tg.before),pv=tg&&tk(tg.prev);
@@ -713,7 +742,7 @@ function moveTo(id,k,tg){
   const same=!t.done&&t.prio===k;
   t.done=false;t.doneAt=0;t.prio=k;t.ord=o;t.updatedAt=Date.now();
   if(b&&pv&&Math.abs(b.ord-pv.ord)<1e-6)renumber();
-  save();render();toast(same?'Tarea reordenada':'Movida a '+P[k]);
+  syncOpenDraft(id);save();render();toast(same?'Tarea reordenada':'Movida a '+P[k]);
 }
 function endDrag(drop){
   if(!dg)return;clearTimeout(dg.h);
