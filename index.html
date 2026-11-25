@@ -133,6 +133,21 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .sheet .step .sh,.sheet .step .x{margin-top:3px}
 .sheet .step .stx{resize:none;overflow:hidden;line-height:1.3;min-height:36px;overflow-wrap:anywhere}
 .sheet textarea.ns{min-height:40px;resize:none;overflow:hidden;line-height:1.3}
+.pbar{display:none}
+@media(min-width:900px){
+  .pbar{display:flex;align-items:center;gap:8px;margin:-16px -16px 8px;padding:8px 12px;background:#e8f3f4;color:var(--accd);font-size:.8rem;font-weight:700;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;position:sticky;top:0;z-index:3}
+  .pbar:active{cursor:grabbing}
+  .pbar .pt{flex:1}
+  .pbar button{border:0;background:#fff;border-radius:6px;padding:3px 9px;color:var(--accd);font-size:.95rem;cursor:pointer}
+  body.pl.so{padding-right:0;padding-left:440px}
+  body.pl.so .fab{right:16px}
+  body.pl .ov{justify-content:flex-start}
+  body.pl .sheet{box-shadow:6px 0 18px rgba(20,30,50,.22)}
+  body.pf.so{padding-right:0}
+  body.pf.so .fab{right:16px}
+  body.pf .sheet{position:fixed;height:auto;max-height:92vh;width:440px;min-width:320px;max-width:92vw;min-height:240px;border-radius:16px;resize:both;box-shadow:0 12px 34px rgba(20,30,50,.35)}
+  body.pf .pbar{border-radius:16px 16px 0 0}
+}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -329,6 +344,32 @@ function render(){
   markSel();
 }
 
+const PK='tareas_panel';
+let PN=(()=>{try{const d=JSON.parse(localStorage.getItem(PK));if(d&&['right','left','free'].includes(d.mode))return d}catch(e){}return{mode:'right'}})();
+function savePN(){try{localStorage.setItem(PK,JSON.stringify(PN))}catch(e){}}
+function applyPN(){
+  const b=document.body,s=$('sheet');
+  b.classList.toggle('pl',PN.mode==='left');b.classList.toggle('pf',PN.mode==='free');
+  if(PN.mode==='free'){
+    const w=s.offsetWidth||440;
+    s.style.left=Math.max(-(w-80),Math.min(PN.x||0,innerWidth-80))+'px';
+    s.style.top=Math.max(0,Math.min(PN.y||0,innerHeight-60))+'px';
+  }else{s.style.left='';s.style.top='';s.style.width='';s.style.height=''}
+}
+let pdrag=null;
+document.addEventListener('pointerdown',e=>{
+  const bar=e.target.closest&&e.target.closest('.pbar');
+  if(!bar||e.target.closest('button')||innerWidth<900||!draft)return;
+  const s=$('sheet'),r=s.getBoundingClientRect();
+  if(PN.mode!=='free'){PN={mode:'free',x:r.left,y:r.top};applyPN()}
+  pdrag={dx:e.clientX-r.left,dy:e.clientY-r.top};
+  if(bar.setPointerCapture&&e.pointerId!=null){try{bar.setPointerCapture(e.pointerId)}catch(x){}}
+  e.preventDefault();
+});
+document.addEventListener('pointermove',e=>{if(!pdrag)return;PN.x=e.clientX-pdrag.dx;PN.y=e.clientY-pdrag.dy;applyPN()});
+const endPd=()=>{if(pdrag){pdrag=null;savePN()}};
+document.addEventListener('pointerup',endPd);document.addEventListener('pointercancel',endPd);
+window.addEventListener('resize',()=>{if(draft&&PN.mode==='free')applyPN()});
 function grow(el){el.style.height='auto';if(el.scrollHeight>0)el.style.height=el.scrollHeight+'px'}
 function markSel(){document.querySelectorAll('.card.sel').forEach(c=>c.classList.remove('sel'));if(draft&&!isNew)document.querySelectorAll('.card[data-id="'+draft.id+'"]').forEach(c=>c.classList.add('sel'))}
 function renderKeep(){const m=$('main'),b=document.querySelector('.board'),st=m.scrollTop,sl=b?b.scrollLeft:0;render();const b2=document.querySelector('.board');m.scrollTop=st;if(b2)b2.scrollLeft=sl}
@@ -343,7 +384,8 @@ function openSheet(id,prio,due,ctg){
   const t=id&&S.tasks.find(x=>x.id===id);
   isNew=!t;
   draft=t?JSON.parse(JSON.stringify(t)):{id:uid(),title:'',notes:'',prio:prio||'p1',cat:ctg!==undefined?ctg:(sel.length===1?sel[0]:''),due:due||'',rep:'',myday:'',done:false,steps:[]};
-  $('sheet').innerHTML=`<label for="f-t">Tarea</label><input type="text" id="f-t" value="${esc(draft.title)}" placeholder="¿Qué necesitas hacer?" maxlength="200">
+  $('sheet').innerHTML=`<div class="pbar" title="Arrastra esta barra para mover la ventana"><span aria-hidden="true">⋮⋮</span><span class="pt">Mover ventana</span><button type="button" data-act="dockl" aria-label="Acoplar a la izquierda" title="Acoplar a la izquierda">◧</button><button type="button" data-act="dockr" aria-label="Acoplar a la derecha" title="Acoplar a la derecha">◨</button></div>
+  <label for="f-t">Tarea</label><input type="text" id="f-t" value="${esc(draft.title)}" placeholder="¿Qué necesitas hacer?" maxlength="200">
   <div class="row2"><div><label for="f-p">Prioridad</label><select id="f-p"><option value="" ${draft.prio===''?'selected':''}>Sin prioridad (Bandeja)</option>${Object.keys(P).map(k=>`<option value="${k}" ${draft.prio===k?'selected':''}>${P[k]}</option>`).join('')}</select></div>
   <div><label for="f-c">Categoría</label><input type="text" id="f-c" list="cl" value="${esc(draft.cat)}" placeholder="Ej. Casa, Viajes"><datalist id="cl">${cats().map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div></div>
   <div id="sw" class="sw"></div>
@@ -356,7 +398,7 @@ function openSheet(id,prio,due,ctg){
   <label for="f-n">Notas</label><textarea id="f-n">${esc(draft.notes)}</textarea>
   <div class="acts">${isNew?'':'<button class="btn del" data-act="del">Eliminar</button>'}<button class="btn sec" data-act="close">Cancelar</button><button class="btn" data-act="save">Guardar</button></div>`;
   renderSteps();renderSw();renderRd();
-  $('ov').classList.add('open');document.body.classList.add('so');dirty=false;markSel();
+  $('ov').classList.add('open');document.body.classList.add('so');applyPN();dirty=false;markSel();
   document.querySelectorAll('#steps .stx,#f-s').forEach(grow);
   setTimeout(()=>{if(isNew)$('f-t').focus()},60);
 }
@@ -633,6 +675,8 @@ document.addEventListener('click',e=>{
     case'wprev':wk--;render();break;
     case'wnext':wk++;render();break;
     case'addd':openSheet(null,'p1',a.dataset.d);break;
+    case'dockl':PN={mode:'left'};savePN();applyPN();break;
+    case'dockr':PN={mode:'right'};savePN();applyPN();break;
     case'tpl':downloadTemplate();break;
     case'catadd':{const v=$('newcat').value.trim();if(!v)break;if(cats().some(c=>nk(c)===nk(v))){toast('Esa categoría ya existe');break}S.catList.push(v);save();render();toast('Categoría agregada');break}
     case'catdel':{const c=a.dataset.c,n=S.tasks.filter(t=>t.cat===c);
